@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Face Puzzle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; }
+        .font-tech { font-family: 'Orbitron', sans-serif; }
+        canvas { display: block; width: 100vw; height: 100vh; object-fit: cover; }
+        .hidden { display: none !important; }
+        
+        .mode-card { transition: all 0.3s ease; cursor: pointer; }
+        .mode-card-single { border-color: rgba(0, 255, 255, 0.4); }
+        .mode-card-single:hover, .mode-card-single.selected { 
+            background-color: rgba(0, 255, 255, 0.1); 
+            border-color: #00FFFF;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+        .mode-card-multi { border-color: rgba(255, 0, 255, 0.4); }
+        .mode-card-multi:hover, .mode-card-multi.selected { 
+            background-color: rgba(255, 0, 255, 0.1); 
+            border-color: #FF00FF;
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+        }
+        .btn-glow {
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-glow:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(255, 255, 255, 1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- UI Overlay (Main Menu) -->
+    <div id="ui-layer" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050505]/90 backdrop-blur-sm transition-opacity duration-500">
+        
+        <h1 class="text-5xl md:text-6xl font-tech font-black tracking-widest uppercase mb-12 drop-shadow-lg text-center">
+            <span class="text-cyan-400 drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]">YOUR FACE</span><br/>
+            <span class="text-pink-500 drop-shadow-[0_0_10px_rgba(255,0,255,0.8)]">PUZZLE</span>
+        </h1>
+
+        <div class="flex flex-col md:flex-row gap-6 mb-10">
+            <div id="card-single" class="mode-card mode-card-single border-2 rounded-xl p-6 w-64 md:w-72 flex flex-col items-center text-center">
+                <span class="font-tech font-bold text-lg text-cyan-400 mb-2">SINGLE PLAYER</span>
+                <p class="text-gray-400 text-sm">Main sendiri!<br>Selesaikan puzzle wajahmu secepat mungkin.</p>
+            </div>
+            <div id="card-multi" class="mode-card mode-card-multi border-2 rounded-xl p-6 w-64 md:w-72 flex flex-col items-center text-center">
+                <span class="font-tech font-bold text-lg text-pink-500 mb-2">MULTIPLAYER</span>
+                <p class="text-gray-400 text-sm">Berdua lebih seru!<br>Siapa yang tercepat menyelesaikan, dia yang menang.</p>
+            </div>
+        </div>
+
+        <div class="text-center mb-10">
+            <p class="font-tech font-bold text-white mb-2 tracking-widest">ATURAN:</p>
+            <p class="text-gray-300 text-sm md:text-base max-w-md mx-auto">
+                Gunakan tanganmu untuk screenshot wajahmu.<br>
+                Lalu susun puzzle dengan menjentikkan jari!
+            </p>
+        </div>
+
+        <div class="flex flex-col gap-4 items-center">
+            <button id="btn-start-cam" class="font-tech bg-white text-black font-extrabold text-lg px-12 py-3 rounded-full btn-glow w-72">
+                NYALAKAN KAMERA
+            </button>
+            <button id="btn-start-game" class="font-tech bg-gray-700 text-gray-400 font-extrabold text-lg px-12 py-3 rounded-full transition-all duration-300 w-72 cursor-not-allowed" disabled>
+                MULAI GAME
+            </button>
+        </div>
+
+        <div class="absolute bottom-6 flex flex-col items-center text-xs md:text-sm text-gray-500 font-tech tracking-wide">
+            <p>Made by <span class="text-white">Ronaldo Widianto Siswoyo</span></p>
+            <p>IG: <a href="https://instagram.com/ronaldohauw" target="_blank" class="text-cyan-400 hover:text-cyan-300 drop-shadow-[0_0_5px_rgba(0,255,255,0.8)]">@ronaldohauw</a></p>
+        </div>
+    </div>
+
+    <!-- Win Screen Overlay -->
+    <div id="win-screen" class="hidden absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm transition-opacity duration-500 px-4">
+        <div id="win-card" class="flex flex-col items-center justify-center p-8 md:p-10 border-2 bg-[#0a0a0f]/90 backdrop-blur-md rounded-2xl transition-all max-w-lg w-full shadow-lg">
+            <h2 id="win-title" class="font-tech text-4xl md:text-5xl font-black mb-6 tracking-wider uppercase text-center"></h2>
+            <div class="p-2 border border-gray-600 bg-black rounded-lg mb-6 shadow-inner">
+                <img id="win-image" class="w-56 h-56 md:w-72 md:h-72 object-cover rounded" alt="Puzzle Selesai" />
+            </div>
+            <p id="win-time" class="font-tech text-2xl md:text-3xl font-bold mb-8 text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]"></p>
+            <button id="btn-play-again" class="font-tech bg-white text-black font-extrabold text-lg md:text-xl px-10 py-3 rounded-full btn-glow w-full max-w-xs hover:bg-gray-200">
+                MAIN LAGI
+            </button>
+        </div>
+    </div>
+
+    <!-- Gameplay Video & Canvas -->
+    <video id="webcam" autoplay playsinline class="hidden"></video>
+    <canvas id="game-canvas"></canvas>
+
+    <script>
+        const PINCH_THRESHOLD = 60; 
+        const HAND_CONNECTIONS = [
+            [0,1],[1,2],[2,3],[3,4],
+            [0,5],[5,6],[6,7],[7,8],
+            [5,9],[9,10],[10,11],[11,12],
+            [9,13],[13,14],[14,15],[15,16],
+            [13,17],[0,17],[17,18],[18,19],[19,20]
+        ];
+        const COLOR_P1 = "#00FFFF";
+        const COLOR_P2 = "#FF00FF";
+
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('game-canvas');
+        const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
+        
+        const uiLayer = document.getElementById('ui-layer');
+        const winScreen = document.getElementById('win-screen');
+        const cardSingle = document.getElementById('card-single');
+        const cardMulti = document.getElementById('card-multi');
+        const btnStartCam = document.getElementById('btn-start-cam');
+        const btnStartGame = document.getElementById('btn-start-game');
+        const winTitle = document.getElementById('win-title');
+        const winCard = document.getElementById('win-card');
+        const winImage = document.getElementById('win-image');
+        const winTime = document.getElementById('win-time');
+        const btnPlayAgain = document.getElementById('btn-play-again');
+
+        let selectedMode = null;
+        let isCameraOn = false;
+        let isPlaying = false; 
+        let players = []; 
+        let globalWinner = null; 
+
+        function resizeCanvas() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function updateMenuUI() {
+            if (selectedMode === 'single') {
+                cardSingle.classList.add('selected');
+                cardMulti.classList.remove('selected');
+            } else if (selectedMode === 'multi') {
+                cardMulti.classList.add('selected');
+                cardSingle.classList.remove('selected');
+            } else {
+                cardSingle.classList.remove('selected');
+                cardMulti.classList.remove('selected');
+            }
+            if (isCameraOn && selectedMode) {
+                btnStartGame.classList.remove('bg-gray-700','text-gray-400','cursor-not-allowed');
+                btnStartGame.classList.add('bg-white','text-black','btn-glow','cursor-pointer');
+                btnStartGame.disabled = false;
+            } else {
+                btnStartGame.classList.add('bg-gray-700','text-gray-400','cursor-not-allowed');
+                btnStartGame.classList.remove('bg-white','text-black','btn-glow','cursor-pointer');
+                btnStartGame.disabled = true;
+            }
+        }
+
+        cardSingle.addEventListener('click', () => { selectedMode = 'single'; updateMenuUI(); });
+        cardMulti.addEventListener('click', () => { selectedMode = 'multi'; updateMenuUI(); });
+
+        btnStartCam.addEventListener('click', () => {
+            if (!isCameraOn) {
+                // Check HTTPS
+                const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+                if (!isSecure) {
+                    alert('⚠️ Kamera membutuhkan HTTPS!\n\nAkses website via:\nhttps://' + location.host + location.pathname);
+                    return;
+                }
+                btnStartCam.innerText = "MEMUAT KAMERA...";
+                btnStartCam.classList.remove('btn-glow');
+                btnStartCam.disabled = true;
+                camera.start();
+            }
+        });
+
+        function cameraReady() {
+            if (!isCameraOn) {
+                isCameraOn = true;
+                btnStartCam.innerText = "KAMERA AKTIF ✓";
+                btnStartCam.classList.remove('bg-white','text-black');
+                btnStartCam.classList.add('bg-transparent','text-cyan-400','border','border-cyan-400');
+                btnStartCam.disabled = true;
+                updateMenuUI();
+            }
+        }
+
+        btnStartGame.addEventListener('click', () => {
+            if (isCameraOn && selectedMode) {
+                uiLayer.classList.add('hidden');
+                players = [];
+                if (selectedMode === 'single') {
+                    players.push(new Player(1, { x: 0, y: 0, w: canvasElement.width, h: canvasElement.height }, COLOR_P1));
+                } else {
+                    let halfW = canvasElement.width / 2;
+                    players.push(new Player(1, { x: 0, y: 0, w: halfW, h: canvasElement.height }, COLOR_P1));
+                    players.push(new Player(2, { x: halfW, y: 0, w: halfW, h: canvasElement.height }, COLOR_P2));
+                }
+                globalWinner = null;
+                isPlaying = true;
+            }
+        });
+
+        btnPlayAgain.addEventListener('click', () => {
+            winScreen.classList.add('hidden');
+            uiLayer.classList.remove('hidden');
+            selectedMode = null;
+            isPlaying = false;
+            players = [];
+            globalWinner = null;
+            updateMenuUI();
+        });
+
+        function triggerWinScreen(winnerPlayer) {
+            isPlaying = false;
+            let tempCanvas = document.createElement('canvas');
+            tempCanvas.width = winnerPlayer.box.w;
+            tempCanvas.height = winnerPlayer.box.h;
+            let tctx = tempCanvas.getContext('2d');
+            winnerPlayer.pieces.forEach(p => {
+                tctx.drawImage(p.image, p.drawX - winnerPlayer.box.x, p.drawY - winnerPlayer.box.y);
+            });
+            winImage.src = tempCanvas.toDataURL('image/png');
+            winTime.innerText = `WAKTU: ${winnerPlayer.formatTime(winnerPlayer.elapsedTime)}`;
+            if (selectedMode === 'multi') {
+                winTitle.innerText = `PLAYER ${winnerPlayer.id} MENANG!`;
+                winTitle.style.color = winnerPlayer.color;
+                winTitle.style.textShadow = `0 0 15px ${winnerPlayer.color}`;
+                winCard.style.borderColor = winnerPlayer.color;
+                winCard.style.boxShadow = `0 0 30px ${winnerPlayer.color}66`;
+            } else {
+                winTitle.innerText = `SELESAI!`;
+                winTitle.style.color = COLOR_P1;
+                winTitle.style.textShadow = `0 0 15px ${COLOR_P1}`;
+                winCard.style.borderColor = COLOR_P1;
+                winCard.style.boxShadow = `0 0 30px ${COLOR_P1}66`;
+            }
+            winScreen.classList.remove('hidden');
+        }
+
+        class Player {
+            constructor(id, bounds, color) {
+                this.id = id;
+                this.bounds = bounds; 
+                this.color = color;
+                this.state = 'CALIBRATING';
+                this.box = null; 
+                this.pieces = []; 
+                this.slots = []; 
+                this.heldPieceIndex = -1;
+                this.startTime = null;
+                this.elapsedTime = 0;
+                this.intervalId = null;
+                this.isPinching = false;
+            }
+
+            update(handsData) {
+                if (this.state === 'CALIBRATING') {
+                    this.handleCalibration(handsData);
+                } else if (this.state === 'WAITING') {
+                    this.drawWaiting();
+                } else if (this.state === 'PLAYING') {
+                    this.handleGameplay(handsData);
+                } else if (this.state === 'LOSE') {
+                    this.drawWaiting(true);
+                }
+            }
+
+            handleCalibration(handsData) {
+                ctx.save();
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 10;
+                ctx.font = "bold 28px 'Orbitron', sans-serif";
+                ctx.textAlign = "center";
+                let msgX = this.bounds.x + this.bounds.w / 2;
+                ctx.fillText(`PLAYER ${this.id}: Angkat 2 Tangan`, msgX, 60);
+                ctx.font = "20px 'Segoe UI', sans-serif";
+                ctx.shadowBlur = 5;
+                ctx.fillText(`Bentangkan telunjuk & jempol untuk membuat kotak.`, msgX, 95);
+                ctx.fillText(`Jentikkan keduanya untuk memotret!`, msgX, 125);
+                ctx.restore();
+
+                if (handsData.length >= 2) {
+                    let hA = handsData[0];
+                    let hB = handsData[1];
+                    let leftHand  = hA[0].x < hB[0].x ? hA : hB;
+                    let rightHand = hA[0].x < hB[0].x ? hB : hA;
+
+                    let pLeftThumb  = leftHand[4];
+                    let pRightIndex = rightHand[8];
+
+                    let left   = Math.min(pLeftThumb.x, pRightIndex.x);
+                    let right  = Math.max(pLeftThumb.x, pRightIndex.x);
+                    let top    = Math.min(pLeftThumb.y, pRightIndex.y);
+                    let bottom = Math.max(pLeftThumb.y, pRightIndex.y);
+                    let w = right - left;
+                    let h = bottom - top;
+
+                    if (w > 50 && h > 50) {
+                        this.box = { x: left, y: top, w: w, h: h };
+                        ctx.save();
+                        ctx.strokeStyle = "white";
+                        ctx.shadowColor = "white";
+                        ctx.shadowBlur = 15;
+                        ctx.lineWidth = 4;
+                        ctx.strokeRect(this.box.x, this.box.y, this.box.w, this.box.h);
+                        ctx.restore();
+
+                        let pinchLeft  = this.getDistance(leftHand[4],  leftHand[8])  < PINCH_THRESHOLD;
+                        let pinchRight = this.getDistance(rightHand[4], rightHand[8]) < PINCH_THRESHOLD;
+
+                        if (pinchLeft) {
+                            ctx.save();
+                            ctx.strokeStyle = "white"; ctx.shadowColor = "white";
+                            ctx.shadowBlur = 20; ctx.lineWidth = 6;
+                            ctx.beginPath();
+                            ctx.moveTo(leftHand[4].x, leftHand[4].y);
+                            ctx.lineTo(leftHand[8].x, leftHand[8].y);
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+                        if (pinchRight) {
+                            ctx.save();
+                            ctx.strokeStyle = "white"; ctx.shadowColor = "white";
+                            ctx.shadowBlur = 20; ctx.lineWidth = 6;
+                            ctx.beginPath();
+                            ctx.moveTo(rightHand[4].x, rightHand[4].y);
+                            ctx.lineTo(rightHand[8].x, rightHand[8].y);
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+
+                        if (pinchLeft && pinchRight) {
+                            this.capturePuzzle();
+                        }
+                    }
+                }
+            }
+
+            capturePuzzle() {
+                let imageData = ctx.getImageData(this.box.x, this.box.y, this.box.w, this.box.h);
+                let tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.box.w;
+                tempCanvas.height = this.box.h;
+                tempCanvas.getContext('2d').putImageData(imageData, 0, 0);
+
+                let pieceW = this.box.w / 3;
+                let pieceH = this.box.h / 3;
+                this.pieces = [];
+                this.slots = [];
+
+                for (let i = 0; i < 9; i++) {
+                    let row = Math.floor(i / 3);
+                    let col = i % 3;
+                    let pX = this.box.x + col * pieceW;
+                    let pY = this.box.y + row * pieceH;
+                    this.slots.push({ x: pX, y: pY, w: pieceW, h: pieceH });
+                    let pieceCanvas = document.createElement('canvas');
+                    pieceCanvas.width  = pieceW;
+                    pieceCanvas.height = pieceH;
+                    pieceCanvas.getContext('2d').drawImage(tempCanvas, col*pieceW, row*pieceH, pieceW, pieceH, 0, 0, pieceW, pieceH);
+                    this.pieces.push({ id: i, currentSlot: i, image: pieceCanvas, drawX: pX, drawY: pY });
+                }
+
+                this.shufflePuzzle();
+                if (selectedMode === 'multi') {
+                    this.state = 'WAITING';
+                } else {
+                    this.startPlaying();
+                }
+            }
+
+            shufflePuzzle() {
+                let slotIndices = [0,1,2,3,4,5,6,7,8];
+                for (let i = slotIndices.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [slotIndices[i], slotIndices[j]] = [slotIndices[j], slotIndices[i]];
+                }
+                this.pieces.forEach((p, index) => {
+                    p.currentSlot = slotIndices[index];
+                    this.snapToSlot(p);
+                });
+            }
+
+            startPlaying() {
+                this.state = 'PLAYING';
+                this.startTime = Date.now();
+                this.intervalId = setInterval(() => {
+                    this.elapsedTime = Math.floor((Date.now() - this.startTime) / 1000);
+                }, 1000);
+            }
+
+            snapToSlot(piece) {
+                let slot = this.slots[piece.currentSlot];
+                piece.drawX = slot.x;
+                piece.drawY = slot.y;
+            }
+
+            drawWaiting(isLose = false) {
+                this.pieces.forEach((p) => {
+                    ctx.drawImage(p.image, p.drawX, p.drawY);
+                    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(p.drawX, p.drawY, p.image.width, p.image.height);
+                });
+                if (!isLose) {
+                    ctx.save();
+                    ctx.fillStyle = this.color; ctx.shadowColor = this.color; ctx.shadowBlur = 10;
+                    ctx.font = "bold 26px 'Orbitron', sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText("Menunggu lawan...", this.bounds.x + this.bounds.w/2, 60);
+                    ctx.restore();
+                }
+            }
+
+            handleGameplay(handsData) {
+                ctx.save();
+                ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                ctx.lineWidth = 1;
+                this.slots.forEach(slot => ctx.strokeRect(slot.x, slot.y, slot.w, slot.h));
+                ctx.restore();
+
+                let cursor = null;
+                let pinching = false;
+
+                if (handsData.length > 0) {
+                    let h = handsData[0]; 
+                    cursor = { x: (h[4].x + h[8].x)/2, y: (h[4].y + h[8].y)/2 };
+                    pinching = this.getDistance(h[4], h[8]) < PINCH_THRESHOLD;
+
+                    ctx.save();
+                    let pulse = pinching ? Math.abs(Math.sin(Date.now() / 120)) * 6 : 0;
+                    let radius = pinching ? 12 + pulse : 8;
+                    ctx.fillStyle = pinching ? this.color : "rgba(255,255,255,0.8)";
+                    ctx.shadowColor = pinching ? this.color : "white";
+                    ctx.shadowBlur = pinching ? 20 + pulse * 2 : 10;
+
+                    if (pinching) {
+                        ctx.strokeStyle = this.color;
+                        ctx.lineWidth = 4 + pulse/2;
+                        ctx.beginPath();
+                        ctx.moveTo(h[4].x, h[4].y);
+                        ctx.lineTo(h[8].x, h[8].y);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.arc(cursor.x, cursor.y, radius + 10, 0, Math.PI*2);
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                    ctx.beginPath();
+                    ctx.arc(cursor.x, cursor.y, radius, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                if (pinching && !this.isPinching) {
+                    this.isPinching = true;
+                    if (cursor && this.heldPieceIndex === -1) {
+                        for (let i = 0; i < this.pieces.length; i++) {
+                            let p = this.pieces[i];
+                            let slot = this.slots[p.currentSlot];
+                            if (cursor.x >= slot.x && cursor.x <= slot.x + slot.w &&
+                                cursor.y >= slot.y && cursor.y <= slot.y + slot.h) {
+                                this.heldPieceIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                } else if (pinching && this.isPinching) {
+                    if (this.heldPieceIndex !== -1 && cursor) {
+                        let p = this.pieces[this.heldPieceIndex];
+                        p.drawX = cursor.x - this.slots[0].w/2;
+                        p.drawY = cursor.y - this.slots[0].h/2;
+                    }
+                } else if (!pinching && this.isPinching) {
+                    this.isPinching = false;
+                    if (this.heldPieceIndex !== -1 && cursor) {
+                        let heldPiece = this.pieces[this.heldPieceIndex];
+                        let targetSlotIndex = -1;
+                        let minDist = Infinity;
+                        for (let i = 0; i < this.slots.length; i++) {
+                            let slot = this.slots[i];
+                            let cx = slot.x + slot.w/2;
+                            let cy = slot.y + slot.h/2;
+                            let dist = this.getDistance(cursor, {x: cx, y: cy});
+                            if (dist < minDist) { minDist = dist; targetSlotIndex = i; }
+                        }
+                        if (targetSlotIndex !== -1 && targetSlotIndex !== heldPiece.currentSlot) {
+                            let pieceInTarget = this.pieces.find(p => p.currentSlot === targetSlotIndex);
+                            if (pieceInTarget) {
+                                pieceInTarget.currentSlot = heldPiece.currentSlot;
+                                this.snapToSlot(pieceInTarget);
+                            }
+                            heldPiece.currentSlot = targetSlotIndex;
+                        }
+                        this.snapToSlot(heldPiece);
+                        this.heldPieceIndex = -1;
+                        this.checkWin();
+                    }
+                }
+
+                // Render pieces
+                this.pieces.forEach((p, idx) => {
+                    if (idx !== this.heldPieceIndex) {
+                        ctx.drawImage(p.image, p.drawX, p.drawY);
+                        ctx.strokeStyle = "#222";
+                        ctx.strokeRect(p.drawX, p.drawY, p.image.width, p.image.height);
+                    }
+                });
+
+                if (this.heldPieceIndex !== -1) {
+                    let p = this.pieces[this.heldPieceIndex];
+                    ctx.globalAlpha = 0.85;
+                    ctx.drawImage(p.image, p.drawX, p.drawY);
+                    ctx.globalAlpha = 1.0;
+                    ctx.save();
+                    let pulseGlow = Math.abs(Math.sin(Date.now() / 150)) * 15;
+                    ctx.strokeStyle = this.color;
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = 15 + pulseGlow;
+                    ctx.lineWidth = 4 + pulseGlow / 4;
+                    ctx.strokeRect(p.drawX, p.drawY, p.image.width, p.image.height);
+                    ctx.restore();
+                }
+
+                // Timer
+                ctx.save();
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 15;
+                ctx.font = "bold 36px 'Orbitron', sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(`WAKTU: ${this.formatTime(this.elapsedTime)}`, this.bounds.x + this.bounds.w/2, 60);
+                ctx.restore();
+            }
+
+            checkWin() {
+                let isWin = this.pieces.every(p => p.id === p.currentSlot);
+                if (isWin && this.state !== 'SOLVED') {
+                    this.state = 'SOLVED';
+                    clearInterval(this.intervalId);
+                    if (selectedMode === 'multi') {
+                        let loser = players.find(x => x.id !== this.id);
+                        if (loser) { loser.state = 'LOSE'; clearInterval(loser.intervalId); }
+                    }
+                    triggerWinScreen(this);
+                }
+            }
+
+            getDistance(p1, p2) {
+                return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+            }
+
+            formatTime(seconds) {
+                let m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                let s = (seconds % 60).toString().padStart(2, '0');
+                return `${m}:${s}`;
+            }
+        }
+
+        function drawSkeleton(landmarks, color) {
+            ctx.save();
+            ctx.strokeStyle = color; ctx.fillStyle = color;
+            ctx.shadowColor = color; ctx.shadowBlur = 12;
+            ctx.lineWidth = 3;
+            HAND_CONNECTIONS.forEach(conn => {
+                const p1 = landmarks[conn[0]];
+                const p2 = landmarks[conn[1]];
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            });
+            landmarks.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5, 0, 2*Math.PI);
+                ctx.fill();
+            });
+            ctx.restore();
+        }
+
+        function onResults(results) {
+            cameraReady();
+
+            ctx.save();
+            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            const canvasRatio = canvasElement.width / canvasElement.height;
+            const videoRatio  = results.image.width / results.image.height;
+            let dw, dh, dx, dy;
+
+            if (canvasRatio > videoRatio) {
+                dw = canvasElement.width;
+                dh = canvasElement.width / videoRatio;
+                dx = 0;
+                dy = (canvasElement.height - dh) / 2;
+            } else {
+                dw = canvasElement.height * videoRatio;
+                dh = canvasElement.height;
+                dx = (canvasElement.width - dw) / 2;
+                dy = 0;
+            }
+
+            ctx.translate(canvasElement.width, 0);
+            ctx.scale(-1, 1);
+            ctx.filter = "brightness(0.5)";
+            ctx.drawImage(results.image, dx, dy, dw, dh);
+            ctx.filter = "none";
+            ctx.restore();
+
+            let mappedHands = [];
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    let mapped = landmarks.map(lm => {
+                        let x = lm.x * dw + dx;
+                        let y = lm.y * dh + dy;
+                        x = canvasElement.width - x;
+                        return { x, y, z: lm.z };
+                    });
+                    mappedHands.push(mapped);
+                }
+            }
+
+            if (isPlaying && players.length > 0) {
+                if (selectedMode === 'multi') {
+                    ctx.save();
+                    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+                    ctx.shadowColor = "white"; ctx.shadowBlur = 10; ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(canvasElement.width / 2, 0);
+                    ctx.lineTo(canvasElement.width / 2, canvasElement.height);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                let p1Hands = [], p2Hands = [];
+                if (selectedMode === 'single') {
+                    p1Hands = mappedHands;
+                } else {
+                    mappedHands.forEach(hand => {
+                        let avgX = hand.reduce((sum, lm) => sum + lm.x, 0) / hand.length;
+                        if (avgX < canvasElement.width / 2) p1Hands.push(hand);
+                        else p2Hands.push(hand);
+                    });
+                }
+
+                if (players[0]) players[0].update(p1Hands);
+                if (players[1]) players[1].update(p2Hands);
+
+                if (selectedMode === 'multi') {
+                    let bothReady = players.every(p => p.state !== 'CALIBRATING');
+                    if (bothReady) {
+                        players.forEach(p => { if (p.state === 'WAITING') p.startPlaying(); });
+                    }
+                }
+            }
+
+            if (isPlaying && players.length > 0) {
+                if (selectedMode === 'single') {
+                    mappedHands.forEach(hand => drawSkeleton(hand, COLOR_P1));
+                } else {
+                    mappedHands.forEach(hand => {
+                        let avgX = hand.reduce((sum, lm) => sum + lm.x, 0) / hand.length;
+                        if (avgX < canvasElement.width / 2) drawSkeleton(hand, COLOR_P1);
+                        else drawSkeleton(hand, COLOR_P2);
+                    });
+                }
+            } else {
+                mappedHands.forEach(hand => drawSkeleton(hand, "#FFFFFF"));
+            }
+        }
+
+        const hands = new Hands({ locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+        hands.setOptions({
+            maxNumHands: 4,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({ image: videoElement }); },
+            width: 1280,
+            height: 720
+        });
+    </script>
+</body>
+</html>
